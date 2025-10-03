@@ -18,35 +18,217 @@ stats = {
     'codes_list': []
 }
 
-# HTTP Server لـ Render Health Check
+# HTTP Server لـ Render Health Check - بدون إيموجي
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/html')
+        self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
         
         uptime = datetime.now() - stats['start_time']
-        hours = int(uptime.total_seconds() / 3600)
-        minutes = int((uptime.total_seconds() % 3600) / 60)
+        total_seconds = int(uptime.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        
+        # حساب معدل النجاح
+        total_codes = stats['codes_sent'] + stats['codes_rejected']
+        success_rate = (stats['codes_sent'] / total_codes * 100) if total_codes > 0 else 0
+        
+        # آخر كود
+        last_code_info = "No codes sent yet"
+        if stats['last_code_time']:
+            time_since = datetime.now() - stats['last_code_time']
+            last_code_info = f"{int(time_since.total_seconds())}s ago"
+        
+        # آخر 5 أكواد
+        recent_codes = ", ".join(stats['codes_list'][-5:]) if stats['codes_list'] else "None"
         
         html = f"""
+        <!DOCTYPE html>
         <html>
-        <head><title>Reddit Sora Monitor</title></head>
-        <body style="font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff;">
-            <h1>Reddit Monitor Status</h1>
-            <div style="background: #2a2a2a; padding: 20px; border-radius: 10px;">
-                <p><strong>Status:</strong> Running</p>
-                <p><strong>Uptime:</strong> {hours}h {minutes}m</p>
-                <p><strong>Codes Sent:</strong> {stats['codes_sent']}</p>
-                <p><strong>Codes Rejected:</strong> {stats['codes_rejected']}</p>
-                <p><strong>Images Scanned:</strong> {stats['images_scanned']}</p>
-                <p><strong>Total Checks:</strong> {stats['total_checks']}</p>
-                <p><strong>Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="refresh" content="30">
+            <title>Reddit Sora Monitor - Dashboard</title>
+            <style>
+                body {{
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    padding: 30px;
+                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    color: #eee;
+                    margin: 0;
+                }}
+                .container {{
+                    max-width: 1000px;
+                    margin: 0 auto;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #00d4ff;
+                    font-size: 2.5em;
+                    margin-bottom: 10px;
+                    text-shadow: 0 0 10px rgba(0,212,255,0.5);
+                }}
+                .subtitle {{
+                    text-align: center;
+                    color: #aaa;
+                    margin-bottom: 40px;
+                    font-size: 1.1em;
+                }}
+                .status-badge {{
+                    display: inline-block;
+                    background: #00ff88;
+                    color: #000;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                    font-weight: bold;
+                    font-size: 0.9em;
+                }}
+                .grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }}
+                .card {{
+                    background: rgba(42, 42, 58, 0.8);
+                    padding: 25px;
+                    border-radius: 15px;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                }}
+                .card h2 {{
+                    margin-top: 0;
+                    color: #00d4ff;
+                    font-size: 1.3em;
+                    border-bottom: 2px solid #00d4ff;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                }}
+                .stat-row {{
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 12px 0;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                }}
+                .stat-row:last-child {{
+                    border-bottom: none;
+                }}
+                .stat-label {{
+                    color: #aaa;
+                    font-weight: 500;
+                }}
+                .stat-value {{
+                    color: #fff;
+                    font-weight: bold;
+                    font-size: 1.1em;
+                }}
+                .highlight {{
+                    color: #00ff88;
+                }}
+                .footer {{
+                    text-align: center;
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.1);
+                    color: #888;
+                    font-size: 0.9em;
+                }}
+                .codes-list {{
+                    background: rgba(0, 0, 0, 0.3);
+                    padding: 15px;
+                    border-radius: 8px;
+                    font-family: 'Courier New', monospace;
+                    color: #00ff88;
+                    font-size: 1.1em;
+                    word-break: break-all;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Reddit Sora Monitor</h1>
+                <div class="subtitle">
+                    <span class="status-badge">RUNNING</span>
+                    <br>Real-time OpenAI Sora 2 Invite Code Detection
+                </div>
+                
+                <div class="grid">
+                    <div class="card">
+                        <h2>System Status</h2>
+                        <div class="stat-row">
+                            <span class="stat-label">Status</span>
+                            <span class="stat-value highlight">Online</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Uptime</span>
+                            <span class="stat-value">{hours}h {minutes}m {seconds}s</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">OCR Engine</span>
+                            <span class="stat-value">Enabled</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>Statistics</h2>
+                        <div class="stat-row">
+                            <span class="stat-label">Codes Sent</span>
+                            <span class="stat-value highlight">{stats['codes_sent']}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Codes Rejected</span>
+                            <span class="stat-value">{stats['codes_rejected']}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Success Rate</span>
+                            <span class="stat-value">{success_rate:.1f}%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Images Scanned</span>
+                            <span class="stat-value">{stats['images_scanned']}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>Performance</h2>
+                        <div class="stat-row">
+                            <span class="stat-label">Total Checks</span>
+                            <span class="stat-value">{stats['total_checks']}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Check Interval</span>
+                            <span class="stat-value">10 seconds</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Last Code</span>
+                            <span class="stat-value">{last_code_info}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Avg/Hour</span>
+                            <span class="stat-value">{stats['codes_sent'] / max(hours, 1):.1f} codes</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>Recent Codes (Last 5)</h2>
+                    <div class="codes-list">
+                        {recent_codes}
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Auto-refresh: 30s
+                    <br>Monitoring: r/OpenAI Sora 2 Megathread
+                </div>
             </div>
         </body>
         </html>
         """
-        self.wfile.write(html.encode())
+        self.wfile.write(html.encode('utf-8'))
     
     def log_message(self, format, *args):
         pass
@@ -122,7 +304,7 @@ def extract_text_from_image(image_url):
         return ""
 
 def send_telegram_message(code, comment_url="", username="", seconds_ago=0, source_type="text"):
-    """إرسال رسالة إلى Telegram"""
+    """إرسال رسالة إلى Telegram - مع الإيموجي"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
     if code == "REPORT":
@@ -132,64 +314,60 @@ def send_telegram_message(code, comment_url="", username="", seconds_ago=0, sour
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
         
-        # حساب معدل النجاح
         total_codes = stats['codes_sent'] + stats['codes_rejected']
         success_rate = (stats['codes_sent'] / total_codes * 100) if total_codes > 0 else 0
         
-        # حساب آخر كود
         last_code_info = "No codes sent yet"
         if stats['last_code_time']:
             time_since = datetime.now() - stats['last_code_time']
             last_code_info = f"{int(time_since.total_seconds())}s ago"
         
-        message = f"<b>REDDIT MONITOR - HOURLY REPORT</b>\n"
+        message = f"📊 <b>REDDIT MONITOR - HOURLY REPORT</b>\n"
         message += f"{'='*35}\n\n"
-        message += f"<b>SYSTEM STATUS</b>\n"
-        message += f"Status: Running\n"
+        message += f"<b>⚡ SYSTEM STATUS</b>\n"
+        message += f"Status: 🟢 Running\n"
         message += f"Uptime: {hours}h {minutes}m {seconds}s\n"
-        message += f"Platform: Render.com\n"
-        message += f"OCR: Enabled\n\n"
-        message += f"<b>STATISTICS</b>\n"
+        message += f"OCR: ✅ Enabled\n\n"
+        message += f"<b>📈 STATISTICS</b>\n"
         message += f"Codes Sent: {stats['codes_sent']}\n"
         message += f"Codes Rejected: {stats['codes_rejected']}\n"
         message += f"Success Rate: {success_rate:.1f}%\n"
         message += f"Images Scanned: {stats['images_scanned']}\n"
         message += f"Total Checks: {stats['total_checks']}\n\n"
-        message += f"<b>PERFORMANCE</b>\n"
+        message += f"<b>🚀 PERFORMANCE</b>\n"
         message += f"Check Interval: 10s\n"
         message += f"Last Code: {last_code_info}\n"
         message += f"Avg Codes/Hour: {stats['codes_sent'] / max(hours, 1):.1f}\n\n"
-        message += f"<b>RECENT CODES</b>\n"
+        message += f"<b>🔑 RECENT CODES</b>\n"
         recent_codes = stats['codes_list'][-5:] if stats['codes_list'] else ["None"]
         message += f"{', '.join(recent_codes)}\n\n"
         message += f"{'='*35}\n"
-        message += f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
     elif code == "START":
-        ocr_status = "Enabled" if OCR_ENABLED else "Disabled"
-        message = f"<b>REDDIT MONITOR STARTED</b>\n"
+        ocr_status = "✅ Enabled" if OCR_ENABLED else "⚠️ Disabled"
+        message = f"🚀 <b>REDDIT MONITOR STARTED</b>\n"
         message += f"{'='*30}\n\n"
-        message += f"Target: OpenAI Sora 2\n"
-        message += f"Max Age: 2 minutes\n"
-        message += f"Check Interval: 10 seconds\n"
-        message += f"OCR: {ocr_status}\n"
-        message += f"Platform: Render.com\n\n"
+        message += f"🎯 Target: OpenAI Sora 2\n"
+        message += f"⏱️ Max Age: 2 minutes\n"
+        message += f"🔄 Check Interval: 10 seconds\n"
+        message += f"🖼️ OCR: {ocr_status}\n"
         message += f"{'='*30}\n"
-        message += f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
     else:
-        source_label = "IMAGE" if source_type == "image" else "TEXT"
+        source_emoji = "🖼️" if source_type == "image" else "💬"
         
-        message = f"<b>SORA 2 INVITE CODE DETECTED</b>\n"
+        message = f"🎯 <b>SORA 2 INVITE CODE DETECTED</b>\n"
         message += f"{'='*30}\n\n"
-        message += f"Code: <code>{code}</code>\n"
-        message += f"Posted: {int(seconds_ago)}s ago\n"
-        message += f"Source: {source_label}\n"
-        message += f"Found: {datetime.now().strftime('%H:%M:%S')}\n"
+        message += f"🔑 Code: <code>{code}</code>\n"
+        message += f"⏰ Posted: {int(seconds_ago)}s ago\n"
+        message += f"📱 Source: {source_emoji} {source_type.upper()}\n"
+        message += f"🕐 Found: {datetime.now().strftime('%H:%M:%S')}\n"
         message += f"\n{'='*30}"
         
         if comment_url:
-            message += f"\n\n<a href='{comment_url}'>View on Reddit</a>"
+            message += f"\n\n🔗 <a href='{comment_url}'>View on Reddit</a>"
     
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
@@ -307,13 +485,12 @@ def monitor_reddit_post(post_url):
                 time_diff = current_time - comment.created_utc
                 seconds_ago = int(time_diff)
                 
-                if seconds_ago > 120:  # 2 minutes
+                if seconds_ago > 120:
                     continue
                 
                 checked += 1
                 processed_comments.add(comment.id)
                 
-                # فحص النص
                 text_codes = CODE_PATTERN.findall(comment.body)
                 
                 for code in text_codes:
@@ -341,9 +518,7 @@ def monitor_reddit_post(post_url):
                         print(f"     CODE: {code_upper} ({seconds_ago}s)")
                     else:
                         sent_codes.remove(code_upper)
-                        print(f"     Failed to send: {code_upper}")
                 
-                # فحص الصور
                 if OCR_ENABLED:
                     image_urls = get_image_urls_from_comment(comment)
                     
@@ -381,7 +556,6 @@ def monitor_reddit_post(post_url):
                                     print(f"     IMAGE CODE: {code_upper} ({seconds_ago}s)")
                                 else:
                                     sent_codes.remove(code_upper)
-                                    print(f"     Failed to send image code: {code_upper}")
                         except:
                             pass
             
@@ -391,7 +565,6 @@ def monitor_reddit_post(post_url):
             if len(processed_comments) > 500:
                 processed_comments.clear()
             
-            # انتظار 10 ثواني فقط للفحص الأسرع
             time.sleep(10)
             
         except Exception as e:
@@ -399,7 +572,6 @@ def monitor_reddit_post(post_url):
             time.sleep(30)
 
 if __name__ == "__main__":
-    # بدء HTTP Server في الخلفية
     http_thread = Thread(target=start_http_server, daemon=True)
     http_thread.start()
     
