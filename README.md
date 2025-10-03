@@ -192,20 +192,22 @@ Access it at your deployment URL or `http://localhost:10000` when running locall
 ## 📝 Sample Output
 
 ### Telegram Message Format
-🎯 OpenAI Sora 2 Invite Code
-🔑 Code: A7B9X2
-⏰ Posted: 0.3m ago
-📱 Source: 💬 Text
-🕐 Found: 15:30:45
-🔗 View Comment
+
+    🎯 OpenAI Sora 2 Invite Code
+    🔑 Code: A7B9X2
+    ⏰ Posted: 0.3m ago
+    📱 Source: 💬 Text
+    🕐 Found: 15:30:45
+    🔗 View Comment
 
 ### Console Logs
-🚀 Reddit Monitor Started
-🖼️ OCR: Enabled
-✅ Connected: Open AI Sora 2 Invite Codes Megathread
-📝 Comments: 128
-✅ CODE: A7B9X2
-🎉 NEW: ['A7B9X2(T)']
+
+    🚀 Reddit Monitor Started
+    🖼️ OCR: Enabled
+    ✅ Connected: Open AI Sora 2 Invite Codes Megathread
+    📝 Comments: 128
+    ✅ CODE: A7B9X2
+    🎉 NEW: ['A7B9X2(T)']
 
 ## 🛠️ Troubleshooting
 
