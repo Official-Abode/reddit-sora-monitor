@@ -7,7 +7,7 @@ import os
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# الإحصائيات (تعريفها في البداية عشان الـ HTTP handler يقدر يوصلها)
+# الإحصائيات
 stats = {
     'total_checks': 0,
     'codes_sent': 0,
@@ -16,7 +16,7 @@ stats = {
     'start_time': datetime.now()
 }
 
-# ⭐ HTTP Server لـ Render Health Check
+# HTTP Server لـ Render Health Check
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -67,11 +67,11 @@ reddit = praw.Reddit(
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-# ⭐ OCR.Space API Key
+# OCR.Space API Key
 OCR_API_KEY = os.getenv('OCR_API_KEY')
 OCR_ENABLED = True
 
-# Regex للبحث عن الأكواد (6 أحرف/أرقام بالضبط)
+# Regex للبحث عن الأكواد
 CODE_PATTERN = re.compile(r'\b[A-Za-z0-9]{6}\b')
 
 # لتتبع الأكواد المرسلة والتعليقات المفحوصة
@@ -295,22 +295,32 @@ def monitor_reddit_post(post_url):
                 for code in text_codes:
                     code_upper = code.upper()
                     
+                    # ⭐ الفحص الأول: هل الكود اتبعت قبل كده؟
                     if code_upper in sent_codes:
                         continue
                     
+                    # ⭐ أضف الكود فوراً عشان منمنع التكرار
+                    sent_codes.add(code_upper)
+                    
+                    # فحص صحة الكود
                     is_valid, reason = is_valid_code(code)
                     
                     if not is_valid:
                         stats['codes_rejected'] += 1
+                        sent_codes.remove(code_upper)  # احذفه لو مش valid
                         continue
                     
                     comment_url = f"https://reddit.com{comment.permalink}"
                     
+                    # محاولة إرسال الكود
                     if send_telegram_message(code_upper, comment_url, str(comment.author), minutes_ago, "text"):
-                        sent_codes.add(code_upper)
                         new_codes.append(f"{code_upper}(T)")
                         stats['codes_sent'] += 1
                         print(f"     ✅ CODE: {code_upper}")
+                    else:
+                        # لو فشل الإرسال، احذفه عشان يحاول تاني
+                        sent_codes.remove(code_upper)
+                        print(f"     ⚠️ Failed to send: {code_upper}")
                 
                 # فحص الصور
                 if OCR_ENABLED:
@@ -328,22 +338,28 @@ def monitor_reddit_post(post_url):
                             for code in image_codes:
                                 code_upper = code.upper()
                                 
+                                # ⭐ نفس المنطق للصور
                                 if code_upper in sent_codes:
                                     continue
+                                
+                                sent_codes.add(code_upper)
                                 
                                 is_valid, reason = is_valid_code(code)
                                 
                                 if not is_valid:
                                     stats['codes_rejected'] += 1
+                                    sent_codes.remove(code_upper)
                                     continue
                                 
                                 comment_url = f"https://reddit.com{comment.permalink}"
                                 
                                 if send_telegram_message(code_upper, comment_url, str(comment.author), minutes_ago, "image"):
-                                    sent_codes.add(code_upper)
                                     new_codes.append(f"{code_upper}(I)")
                                     stats['codes_sent'] += 1
                                     print(f"     🖼️ IMAGE CODE: {code_upper}")
+                                else:
+                                    sent_codes.remove(code_upper)
+                                    print(f"     ⚠️ Failed to send image code: {code_upper}")
                         except:
                             pass
             
@@ -367,7 +383,7 @@ if __name__ == "__main__":
     POST_URL = "https://www.reddit.com/r/OpenAI/comments/1nukmm2/open_ai_sora_2_invite_codes_megathread/"
     
     print("📤 Initializing...")
-    time.sleep(2)  # انتظر الـ HTTP server يبدأ
+    time.sleep(2)
     send_telegram_message("START", "", "", 0)
     
     retry_count = 0
