@@ -304,67 +304,24 @@ def extract_text_from_image(image_url):
         return ""
 
 def send_telegram_message(code, comment_url="", username="", seconds_ago=0, source_type="text"):
-    """إرسال رسالة إلى Telegram - مع الإيموجي"""
+    """إرسال رسالة إلى Telegram - رسالة مبسطة فقط للأكواد"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
+    # ❌ إخفاء رسالة REPORT - لا ترسل شيء
     if code == "REPORT":
-        uptime = datetime.now() - stats['start_time']
-        total_seconds = int(uptime.total_seconds())
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        seconds = total_seconds % 60
-        
-        total_codes = stats['codes_sent'] + stats['codes_rejected']
-        success_rate = (stats['codes_sent'] / total_codes * 100) if total_codes > 0 else 0
-        
-        last_code_info = "No codes sent yet"
-        if stats['last_code_time']:
-            time_since = datetime.now() - stats['last_code_time']
-            last_code_info = f"{int(time_since.total_seconds())}s ago"
-        
-        message = f"📊 <b>REDDIT MONITOR - HOURLY REPORT</b>\n"
-        message += f"{'='*35}\n\n"
-        message += f"<b>⚡ SYSTEM STATUS</b>\n"
-        message += f"Status: 🟢 Running\n"
-        message += f"Uptime: {hours}h {minutes}m {seconds}s\n"
-        message += f"OCR: ✅ Enabled\n\n"
-        message += f"<b>📈 STATISTICS</b>\n"
-        message += f"Codes Sent: {stats['codes_sent']}\n"
-        message += f"Codes Rejected: {stats['codes_rejected']}\n"
-        message += f"Success Rate: {success_rate:.1f}%\n"
-        message += f"Images Scanned: {stats['images_scanned']}\n"
-        message += f"Total Checks: {stats['total_checks']}\n\n"
-        message += f"<b>🚀 PERFORMANCE</b>\n"
-        message += f"Check Interval: 10s\n"
-        message += f"Last Code: {last_code_info}\n"
-        message += f"Avg Codes/Hour: {stats['codes_sent'] / max(hours, 1):.1f}\n\n"
-        message += f"<b>🔑 RECENT CODES</b>\n"
-        recent_codes = stats['codes_list'][-5:] if stats['codes_list'] else ["None"]
-        message += f"{', '.join(recent_codes)}\n\n"
-        message += f"{'='*35}\n"
-        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        
+        return True
+    
+    # ❌ إخفاء رسالة START - لا ترسل شيء
     elif code == "START":
-        ocr_status = "✅ Enabled" if OCR_ENABLED else "⚠️ Disabled"
-        message = f"🚀 <b>REDDIT MONITOR STARTED</b>\n"
-        message += f"{'='*30}\n\n"
-        message += f"🎯 Target: OpenAI Sora 2\n"
-        message += f"⏱️ Max Age: 2 minutes\n"
-        message += f"🔄 Check Interval: 10 seconds\n"
-        message += f"🖼️ OCR: {ocr_status}\n"
-        message += f"{'='*30}\n"
-        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        
+        return True
+    
+    # ✅ رسالة الكود فقط - مبسطة
     else:
-        source_emoji = "🖼️" if source_type == "image" else "💬"
-        
         message = f"🎯 <b>SORA 2 INVITE CODE DETECTED</b>\n"
-        message += f"{'='*30}\n\n"
+        message += f"{'='*30}\n"
         message += f"🔑 Code: <code>{code}</code>\n"
         message += f"⏰ Posted: {int(seconds_ago)}s ago\n"
-        message += f"📱 Source: {source_emoji} {source_type.upper()}\n"
-        message += f"🕐 Found: {datetime.now().strftime('%H:%M:%S')}\n"
-        message += f"\n{'='*30}"
+        message += f"{'='*30}"
         
         if comment_url:
             message += f"\n\n🔗 <a href='{comment_url}'>View on Reddit</a>"
@@ -457,9 +414,11 @@ def monitor_reddit_post(post_url):
             current_time = time.time()
             stats['total_checks'] += 1
             
+            # ❌ تم إلغاء إرسال REPORT كل ساعة للمستخدمين
+            # يتم تتبع الإحصائيات داخلياً فقط في الـ Dashboard
             if current_time - last_report_time >= 3600:
-                send_telegram_message("REPORT", "", "", 0)
                 last_report_time = current_time
+                # لا نرسل أي رسالة
             
             print(f"\n{'='*60}")
             print(f"Cycle #{loop_count} - {datetime.now().strftime('%H:%M:%S')}")
@@ -579,7 +538,9 @@ if __name__ == "__main__":
     
     print("Initializing...")
     time.sleep(2)
-    send_telegram_message("START", "", "", 0)
+    
+    # ❌ لا نرسل رسالة START للمستخدمين
+    # send_telegram_message("START", "", "", 0)
     
     retry_count = 0
     while retry_count < 10:
