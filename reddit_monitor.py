@@ -3,20 +3,21 @@ import re
 import time
 import requests
 from datetime import datetime
+import os  # أضف هذا السطر في أول الملف مع باقي الـ imports
 
 # إعدادات Reddit API
 reddit = praw.Reddit(
-    client_id='jGSnY-4hUC_Dz5WIKOKA9g',
-    client_secret='mFwOFHPJrN3Cq45RrmSaeYKivCIROw',
+    client_id=os.getenv('REDDIT_CLIENT_ID', 'jGSnY-4hUC_Dz5WIKOKA9g'),
+    client_secret=os.getenv('REDDIT_SECRET', 'mFwOFHPJrN3Cq45RrmSaeYKivCIROw'),
     user_agent='OpenAI_Sora2/1.0'
 )
 
 # إعدادات Telegram Bot
-TELEGRAM_TOKEN = '8306423203:AAHgv-WwdmfBdy6RuRtkj9k4VkFzjpcIhJk'
-TELEGRAM_CHAT_ID = '515905681'
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '8306423203:AAHgv-WwdmfBdy6RuRtkj9k4VkFzjpcIhJk')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '515905681')
 
 # ⭐ OCR.Space API Key
-OCR_API_KEY = "K82196537888957"
+OCR_API_KEY = os.getenv('OCR_API_KEY', 'K82196537888957')
 OCR_ENABLED = True
 
 # Regex للبحث عن الأكواد (6 أحرف/أرقام بالضبط)
@@ -357,3 +358,4 @@ if __name__ == "__main__":
             retry_count += 1
             print(f"❌ Fatal: {e}")
             time.sleep(60)
+
