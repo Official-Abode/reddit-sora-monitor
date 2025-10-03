@@ -4,6 +4,57 @@ import time
 import requests
 from datetime import datetime
 import os
+from threading import Thread
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# الإحصائيات (تعريفها في البداية عشان الـ HTTP handler يقدر يوصلها)
+stats = {
+    'total_checks': 0,
+    'codes_sent': 0,
+    'codes_rejected': 0,
+    'images_scanned': 0,
+    'start_time': datetime.now()
+}
+
+# ⭐ HTTP Server لـ Render Health Check
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        
+        uptime = datetime.now() - stats['start_time']
+        hours = int(uptime.total_seconds() / 3600)
+        minutes = int((uptime.total_seconds() % 3600) / 60)
+        
+        html = f"""
+        <html>
+        <head><title>Reddit Sora Monitor</title></head>
+        <body style="font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff;">
+            <h1>🚀 Reddit Monitor Status</h1>
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 10px;">
+                <p>✅ <strong>Status:</strong> Running</p>
+                <p>⏱️ <strong>Uptime:</strong> {hours}h {minutes}m</p>
+                <p>🔑 <strong>Codes Sent:</strong> {stats['codes_sent']}</p>
+                <p>❌ <strong>Codes Rejected:</strong> {stats['codes_rejected']}</p>
+                <p>🖼️ <strong>Images Scanned:</strong> {stats['images_scanned']}</p>
+                <p>🔄 <strong>Total Checks:</strong> {stats['total_checks']}</p>
+                <p>⏰ <strong>Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+        </body>
+        </html>
+        """
+        self.wfile.write(html.encode())
+    
+    def log_message(self, format, *args):
+        pass
+
+def start_http_server():
+    """بدء HTTP Server"""
+    port = int(os.getenv('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    print(f"🌐 HTTP Server started on port {port}")
+    server.serve_forever()
 
 # إعدادات Reddit API
 reddit = praw.Reddit(
@@ -27,19 +78,10 @@ CODE_PATTERN = re.compile(r'\b[A-Za-z0-9]{6}\b')
 sent_codes = set()
 processed_comments = set()
 
-# إحصائيات
-stats = {
-    'total_checks': 0,
-    'codes_sent': 0,
-    'codes_rejected': 0,
-    'images_scanned': 0,
-    'start_time': datetime.now()
-}
-
 def extract_text_from_image(image_url):
-    """استخراج النص من الصورة باستخدام OCR.Space API (مجاني)"""
+    """استخراج النص من الصورة"""
     try:
-        print(f"     🌐 Using online OCR for: {image_url[:50]}...")
+        print(f"     🌐 OCR scanning...")
         
         payload = {
             'url': image_url,
@@ -58,37 +100,27 @@ def extract_text_from_image(image_url):
         )
         
         if response.status_code != 200:
-            print(f"     ❌ OCR API Error: HTTP {response.status_code}")
             return ""
         
         result = response.json()
         
         if result.get('IsErroredOnProcessing', True):
-            error_msg = result.get('ErrorMessage', ['Unknown error'])
-            print(f"     ❌ OCR Processing Error: {error_msg}")
             return ""
         
         parsed_results = result.get('ParsedResults', [])
         if not parsed_results:
-            print(f"     ⚠️ No text found in image")
             return ""
         
         extracted_text = parsed_results[0].get('ParsedText', '')
-        
         stats['images_scanned'] += 1
-        print(f"     ✅ Online OCR completed. Text length: {len(extracted_text)}")
-        
-        if extracted_text.strip():
-            print(f"     📝 Extracted text: {extracted_text[:100]}...")
         
         return extracted_text.upper()
         
     except Exception as e:
-        print(f"     ❌ Online OCR Error: {e}")
         return ""
 
 def send_telegram_message(code, comment_url="", username="", minutes_ago=0, source_type="text"):
-    """إرسال رسالة إلى Telegram بتنسيق إنجليزي منظم"""
+    """إرسال رسالة إلى Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
     if code == "REPORT":
@@ -147,7 +179,6 @@ def send_telegram_message(code, comment_url="", username="", minutes_ago=0, sour
         response = requests.post(url, data=payload, timeout=10)
         return response.status_code == 200
     except Exception as e:
-        print(f"❌ Telegram Error: {e}")
         return False
 
 def is_valid_code(code):
@@ -182,7 +213,7 @@ def is_valid_code(code):
     return True, "valid"
 
 def get_image_urls_from_comment(comment):
-    """استخراج روابط الصور من التعليق"""
+    """استخراج روابط الصور"""
     image_urls = []
     
     try:
@@ -198,16 +229,15 @@ def get_image_urls_from_comment(comment):
                 if not url.endswith(('.jpg', '.png', '.gif')):
                     url = url + '.jpg'
                 image_urls.append(url)
-    
-    except Exception as e:
-        print(f"     ⚠️ Error extracting URLs: {e}")
+    except:
+        pass
     
     return image_urls
 
 def monitor_reddit_post(post_url):
     """مراقبة منشور Reddit"""
-    print("🚀 Starting Professional Reddit Monitor...")
-    print(f"🖼️ OCR: {'Enabled (OCR.Space API)' if OCR_ENABLED else 'Disabled'}")
+    print("🚀 Reddit Monitor Started")
+    print(f"🖼️ OCR: {'Enabled' if OCR_ENABLED else 'Disabled'}")
     
     try:
         submission = reddit.submission(url=post_url)
@@ -229,7 +259,7 @@ def monitor_reddit_post(post_url):
                 send_telegram_message("REPORT", "", "", 0)
                 last_report_time = current_time
             
-            print(f"\n{'='*80}")
+            print(f"\n{'='*60}")
             print(f"🔍 Cycle #{loop_count} - {datetime.now().strftime('%H:%M:%S')}")
             
             submission = reddit.submission(url=post_url)
@@ -259,9 +289,6 @@ def monitor_reddit_post(post_url):
                 checked += 1
                 processed_comments.add(comment.id)
                 
-                if checked <= 3:
-                    print(f"\n  📄 Comment #{checked}: {minutes_ago:.1f}m ago by u/{comment.author}")
-                
                 # فحص النص
                 text_codes = CODE_PATTERN.findall(comment.body)
                 
@@ -283,14 +310,11 @@ def monitor_reddit_post(post_url):
                         sent_codes.add(code_upper)
                         new_codes.append(f"{code_upper}(T)")
                         stats['codes_sent'] += 1
-                        print(f"     ✅ TEXT CODE: {code_upper}")
+                        print(f"     ✅ CODE: {code_upper}")
                 
                 # فحص الصور
                 if OCR_ENABLED:
                     image_urls = get_image_urls_from_comment(comment)
-                    
-                    if image_urls and checked <= 3:
-                        print(f"     🖼️ Found {len(image_urls)} image(s)")
                     
                     for img_url in image_urls[:2]:
                         try:
@@ -320,17 +344,11 @@ def monitor_reddit_post(post_url):
                                     new_codes.append(f"{code_upper}(I)")
                                     stats['codes_sent'] += 1
                                     print(f"     🖼️ IMAGE CODE: {code_upper}")
-                        
-                        except Exception as e:
-                            print(f"     ❌ Image error: {e}")
+                        except:
+                            pass
             
-            print(f"\n{'='*80}")
             if new_codes:
                 print(f"🎉 NEW: {new_codes}")
-            else:
-                print(f"✓ Checked {checked} comments - No new codes")
-            
-            print(f"📊 Stats: Sent={stats['codes_sent']}, Rejected={stats['codes_rejected']}, Images={stats['images_scanned']}")
             
             if len(processed_comments) > 500:
                 processed_comments.clear()
@@ -342,9 +360,14 @@ def monitor_reddit_post(post_url):
             time.sleep(30)
 
 if __name__ == "__main__":
+    # بدء HTTP Server في الخلفية
+    http_thread = Thread(target=start_http_server, daemon=True)
+    http_thread.start()
+    
     POST_URL = "https://www.reddit.com/r/OpenAI/comments/1nukmm2/open_ai_sora_2_invite_codes_megathread/"
     
-    print("📤 Starting...")
+    print("📤 Initializing...")
+    time.sleep(2)  # انتظر الـ HTTP server يبدأ
     send_telegram_message("START", "", "", 0)
     
     retry_count = 0
@@ -352,7 +375,6 @@ if __name__ == "__main__":
         try:
             monitor_reddit_post(POST_URL)
         except KeyboardInterrupt:
-            print("\n⏹️ Stopped")
             break
         except Exception as e:
             retry_count += 1
