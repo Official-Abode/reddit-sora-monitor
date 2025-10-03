@@ -13,7 +13,9 @@ stats = {
     'codes_sent': 0,
     'codes_rejected': 0,
     'images_scanned': 0,
-    'start_time': datetime.now()
+    'start_time': datetime.now(),
+    'last_code_time': None,
+    'codes_list': []
 }
 
 # HTTP Server لـ Render Health Check
@@ -31,15 +33,15 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         <html>
         <head><title>Reddit Sora Monitor</title></head>
         <body style="font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff;">
-            <h1>🚀 Reddit Monitor Status</h1>
+            <h1>Reddit Monitor Status</h1>
             <div style="background: #2a2a2a; padding: 20px; border-radius: 10px;">
-                <p>✅ <strong>Status:</strong> Running</p>
-                <p>⏱️ <strong>Uptime:</strong> {hours}h {minutes}m</p>
-                <p>🔑 <strong>Codes Sent:</strong> {stats['codes_sent']}</p>
-                <p>❌ <strong>Codes Rejected:</strong> {stats['codes_rejected']}</p>
-                <p>🖼️ <strong>Images Scanned:</strong> {stats['images_scanned']}</p>
-                <p>🔄 <strong>Total Checks:</strong> {stats['total_checks']}</p>
-                <p>⏰ <strong>Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p><strong>Status:</strong> Running</p>
+                <p><strong>Uptime:</strong> {hours}h {minutes}m</p>
+                <p><strong>Codes Sent:</strong> {stats['codes_sent']}</p>
+                <p><strong>Codes Rejected:</strong> {stats['codes_rejected']}</p>
+                <p><strong>Images Scanned:</strong> {stats['images_scanned']}</p>
+                <p><strong>Total Checks:</strong> {stats['total_checks']}</p>
+                <p><strong>Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             </div>
         </body>
         </html>
@@ -53,7 +55,7 @@ def start_http_server():
     """بدء HTTP Server"""
     port = int(os.getenv('PORT', 10000))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    print(f"🌐 HTTP Server started on port {port}")
+    print(f"HTTP Server started on port {port}")
     server.serve_forever()
 
 # إعدادات Reddit API
@@ -81,7 +83,7 @@ processed_comments = set()
 def extract_text_from_image(image_url):
     """استخراج النص من الصورة"""
     try:
-        print(f"     🌐 OCR scanning...")
+        print(f"     OCR scanning...")
         
         payload = {
             'url': image_url,
@@ -119,54 +121,75 @@ def extract_text_from_image(image_url):
     except Exception as e:
         return ""
 
-def send_telegram_message(code, comment_url="", username="", minutes_ago=0, source_type="text"):
+def send_telegram_message(code, comment_url="", username="", seconds_ago=0, source_type="text"):
     """إرسال رسالة إلى Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
     if code == "REPORT":
         uptime = datetime.now() - stats['start_time']
-        hours = int(uptime.total_seconds() / 3600)
-        minutes = int((uptime.total_seconds() % 3600) / 60)
+        total_seconds = int(uptime.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
         
-        message = f"📊 <b>Reddit Monitor Report</b>\n"
-        message += f"{'='*25}\n"
-        message += f"✅ Status: Running\n"
-        message += f"⏱️ Uptime: {hours}h {minutes}m\n"
-        message += f"🔑 Codes Sent: {stats['codes_sent']}\n"
-        message += f"❌ Codes Rejected: {stats['codes_rejected']}\n"
-        message += f"🖼️ Images Scanned: {stats['images_scanned']}\n"
-        message += f"🔄 Total Checks: {stats['total_checks']}\n"
-        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        message += f"{'='*25}"
+        # حساب معدل النجاح
+        total_codes = stats['codes_sent'] + stats['codes_rejected']
+        success_rate = (stats['codes_sent'] / total_codes * 100) if total_codes > 0 else 0
+        
+        # حساب آخر كود
+        last_code_info = "No codes sent yet"
+        if stats['last_code_time']:
+            time_since = datetime.now() - stats['last_code_time']
+            last_code_info = f"{int(time_since.total_seconds())}s ago"
+        
+        message = f"<b>REDDIT MONITOR - HOURLY REPORT</b>\n"
+        message += f"{'='*35}\n\n"
+        message += f"<b>SYSTEM STATUS</b>\n"
+        message += f"Status: Running\n"
+        message += f"Uptime: {hours}h {minutes}m {seconds}s\n"
+        message += f"Platform: Render.com\n"
+        message += f"OCR: Enabled\n\n"
+        message += f"<b>STATISTICS</b>\n"
+        message += f"Codes Sent: {stats['codes_sent']}\n"
+        message += f"Codes Rejected: {stats['codes_rejected']}\n"
+        message += f"Success Rate: {success_rate:.1f}%\n"
+        message += f"Images Scanned: {stats['images_scanned']}\n"
+        message += f"Total Checks: {stats['total_checks']}\n\n"
+        message += f"<b>PERFORMANCE</b>\n"
+        message += f"Check Interval: 10s\n"
+        message += f"Last Code: {last_code_info}\n"
+        message += f"Avg Codes/Hour: {stats['codes_sent'] / max(hours, 1):.1f}\n\n"
+        message += f"<b>RECENT CODES</b>\n"
+        recent_codes = stats['codes_list'][-5:] if stats['codes_list'] else ["None"]
+        message += f"{', '.join(recent_codes)}\n\n"
+        message += f"{'='*35}\n"
+        message += f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
     elif code == "START":
-        ocr_status = "Enabled ✅" if OCR_ENABLED else "Disabled ⚠️"
-        message = f"🚀 <b>Reddit Monitor Started</b>\n"
-        message += f"{'='*25}\n"
-        message += f"📍 Target: OpenAI Sora 2\n"
-        message += f"⏱️ Max Age: 2 minutes\n"
-        message += f"🔄 Interval: 20 seconds\n"
-        message += f"🖼️ OCR: {ocr_status}\n"
-        message += f"☁️ Platform: Render.com\n"
-        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        message += f"{'='*25}"
+        ocr_status = "Enabled" if OCR_ENABLED else "Disabled"
+        message = f"<b>REDDIT MONITOR STARTED</b>\n"
+        message += f"{'='*30}\n\n"
+        message += f"Target: OpenAI Sora 2\n"
+        message += f"Max Age: 2 minutes\n"
+        message += f"Check Interval: 10 seconds\n"
+        message += f"OCR: {ocr_status}\n"
+        message += f"Platform: Render.com\n\n"
+        message += f"{'='*30}\n"
+        message += f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
     else:
-        source_emoji = "🖼️" if source_type == "image" else "💬"
+        source_label = "IMAGE" if source_type == "image" else "TEXT"
         
-        message = f"🎯 <b>OpenAI Sora 2 Invite Code</b>\n"
-        message += f"{'='*25}\n"
-        message += f"🔑 Code: <code>{code}</code>\n"
-        
-        if minutes_ago > 0:
-            message += f"⏰ Posted: {minutes_ago:.1f}m ago\n"
-        
-        message += f"📱 Source: {source_emoji} {source_type.title()}\n"
-        message += f"🕐 Found: {datetime.now().strftime('%H:%M:%S')}\n"
-        message += f"{'='*25}"
+        message = f"<b>SORA 2 INVITE CODE DETECTED</b>\n"
+        message += f"{'='*30}\n\n"
+        message += f"Code: <code>{code}</code>\n"
+        message += f"Posted: {int(seconds_ago)}s ago\n"
+        message += f"Source: {source_label}\n"
+        message += f"Found: {datetime.now().strftime('%H:%M:%S')}\n"
+        message += f"\n{'='*30}"
         
         if comment_url:
-            message += f"\n\n🔗 <a href='{comment_url}'>View Comment</a>"
+            message += f"\n\n<a href='{comment_url}'>View on Reddit</a>"
     
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
@@ -236,14 +259,15 @@ def get_image_urls_from_comment(comment):
 
 def monitor_reddit_post(post_url):
     """مراقبة منشور Reddit"""
-    print("🚀 Reddit Monitor Started")
-    print(f"🖼️ OCR: {'Enabled' if OCR_ENABLED else 'Disabled'}")
+    print("Reddit Monitor Started")
+    print(f"OCR: {'Enabled' if OCR_ENABLED else 'Disabled'}")
+    print(f"Check Interval: 10 seconds")
     
     try:
         submission = reddit.submission(url=post_url)
-        print(f"✅ Connected: {submission.title}")
+        print(f"Connected: {submission.title}")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return
     
     loop_count = 0
@@ -260,17 +284,17 @@ def monitor_reddit_post(post_url):
                 last_report_time = current_time
             
             print(f"\n{'='*60}")
-            print(f"🔍 Cycle #{loop_count} - {datetime.now().strftime('%H:%M:%S')}")
+            print(f"Cycle #{loop_count} - {datetime.now().strftime('%H:%M:%S')}")
             
             submission = reddit.submission(url=post_url)
             submission.comment_sort = 'new'
             submission.comments.replace_more(limit=0)
             
             all_comments = list(submission.comments)
-            print(f"📝 Comments: {len(all_comments)}")
+            print(f"Comments: {len(all_comments)}")
             
             if len(all_comments) == 0:
-                time.sleep(10)
+                time.sleep(5)
                 continue
             
             new_codes = []
@@ -281,9 +305,9 @@ def monitor_reddit_post(post_url):
                     continue
                 
                 time_diff = current_time - comment.created_utc
-                minutes_ago = time_diff / 60
+                seconds_ago = int(time_diff)
                 
-                if minutes_ago > 2:
+                if seconds_ago > 120:  # 2 minutes
                     continue
                 
                 checked += 1
@@ -295,32 +319,29 @@ def monitor_reddit_post(post_url):
                 for code in text_codes:
                     code_upper = code.upper()
                     
-                    # ⭐ الفحص الأول: هل الكود اتبعت قبل كده؟
                     if code_upper in sent_codes:
                         continue
                     
-                    # ⭐ أضف الكود فوراً عشان منمنع التكرار
                     sent_codes.add(code_upper)
                     
-                    # فحص صحة الكود
                     is_valid, reason = is_valid_code(code)
                     
                     if not is_valid:
                         stats['codes_rejected'] += 1
-                        sent_codes.remove(code_upper)  # احذفه لو مش valid
+                        sent_codes.remove(code_upper)
                         continue
                     
                     comment_url = f"https://reddit.com{comment.permalink}"
                     
-                    # محاولة إرسال الكود
-                    if send_telegram_message(code_upper, comment_url, str(comment.author), minutes_ago, "text"):
+                    if send_telegram_message(code_upper, comment_url, str(comment.author), seconds_ago, "text"):
                         new_codes.append(f"{code_upper}(T)")
                         stats['codes_sent'] += 1
-                        print(f"     ✅ CODE: {code_upper}")
+                        stats['last_code_time'] = datetime.now()
+                        stats['codes_list'].append(code_upper)
+                        print(f"     CODE: {code_upper} ({seconds_ago}s)")
                     else:
-                        # لو فشل الإرسال، احذفه عشان يحاول تاني
                         sent_codes.remove(code_upper)
-                        print(f"     ⚠️ Failed to send: {code_upper}")
+                        print(f"     Failed to send: {code_upper}")
                 
                 # فحص الصور
                 if OCR_ENABLED:
@@ -338,7 +359,6 @@ def monitor_reddit_post(post_url):
                             for code in image_codes:
                                 code_upper = code.upper()
                                 
-                                # ⭐ نفس المنطق للصور
                                 if code_upper in sent_codes:
                                     continue
                                 
@@ -353,26 +373,29 @@ def monitor_reddit_post(post_url):
                                 
                                 comment_url = f"https://reddit.com{comment.permalink}"
                                 
-                                if send_telegram_message(code_upper, comment_url, str(comment.author), minutes_ago, "image"):
+                                if send_telegram_message(code_upper, comment_url, str(comment.author), seconds_ago, "image"):
                                     new_codes.append(f"{code_upper}(I)")
                                     stats['codes_sent'] += 1
-                                    print(f"     🖼️ IMAGE CODE: {code_upper}")
+                                    stats['last_code_time'] = datetime.now()
+                                    stats['codes_list'].append(code_upper)
+                                    print(f"     IMAGE CODE: {code_upper} ({seconds_ago}s)")
                                 else:
                                     sent_codes.remove(code_upper)
-                                    print(f"     ⚠️ Failed to send image code: {code_upper}")
+                                    print(f"     Failed to send image code: {code_upper}")
                         except:
                             pass
             
             if new_codes:
-                print(f"🎉 NEW: {new_codes}")
+                print(f"NEW: {new_codes}")
             
             if len(processed_comments) > 500:
                 processed_comments.clear()
             
-            time.sleep(20)
+            # انتظار 10 ثواني فقط للفحص الأسرع
+            time.sleep(10)
             
         except Exception as e:
-            print(f"⚠️ Error: {e}")
+            print(f"Error: {e}")
             time.sleep(30)
 
 if __name__ == "__main__":
@@ -382,7 +405,7 @@ if __name__ == "__main__":
     
     POST_URL = "https://www.reddit.com/r/OpenAI/comments/1nukmm2/open_ai_sora_2_invite_codes_megathread/"
     
-    print("📤 Initializing...")
+    print("Initializing...")
     time.sleep(2)
     send_telegram_message("START", "", "", 0)
     
@@ -394,5 +417,5 @@ if __name__ == "__main__":
             break
         except Exception as e:
             retry_count += 1
-            print(f"❌ Fatal: {e}")
+            print(f"Fatal: {e}")
             time.sleep(60)
