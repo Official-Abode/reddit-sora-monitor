@@ -3,21 +3,21 @@ import re
 import time
 import requests
 from datetime import datetime
-import os  # أضف هذا السطر في أول الملف مع باقي الـ imports
+import os
 
 # إعدادات Reddit API
 reddit = praw.Reddit(
-    client_id=os.getenv('REDDIT_CLIENT_ID', 'jGSnY-4hUC_Dz5WIKOKA9g'),
-    client_secret=os.getenv('REDDIT_SECRET', 'mFwOFHPJrN3Cq45RrmSaeYKivCIROw'),
+    client_id=os.getenv('REDDIT_CLIENT_ID'),
+    client_secret=os.getenv('REDDIT_SECRET'),
     user_agent='OpenAI_Sora2/1.0'
 )
 
 # إعدادات Telegram Bot
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '8306423203:AAHgv-WwdmfBdy6RuRtkj9k4VkFzjpcIhJk')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '515905681')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 # ⭐ OCR.Space API Key
-OCR_API_KEY = os.getenv('OCR_API_KEY', 'K82196537888957')
+OCR_API_KEY = os.getenv('OCR_API_KEY')
 OCR_ENABLED = True
 
 # Regex للبحث عن الأكواد (6 أحرف/أرقام بالضبط)
@@ -115,11 +115,11 @@ def send_telegram_message(code, comment_url="", username="", minutes_ago=0, sour
         message += f"⏱️ Max Age: 2 minutes\n"
         message += f"🔄 Interval: 20 seconds\n"
         message += f"🖼️ OCR: {ocr_status}\n"
+        message += f"☁️ Platform: Render.com\n"
         message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         message += f"{'='*25}"
         
     else:
-        # ⭐ رسالة مبسطة بدون Author
         source_emoji = "🖼️" if source_type == "image" else "💬"
         
         message = f"🎯 <b>OpenAI Sora 2 Invite Code</b>\n"
@@ -358,4 +358,3 @@ if __name__ == "__main__":
             retry_count += 1
             print(f"❌ Fatal: {e}")
             time.sleep(60)
-
