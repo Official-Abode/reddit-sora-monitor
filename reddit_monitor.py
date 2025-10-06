@@ -534,7 +534,7 @@ if __name__ == "__main__":
     http_thread = Thread(target=start_http_server, daemon=True)
     http_thread.start()
     
-    POST_URL = "https://www.reddit.com/r/OpenAI/comments/1nukmm2/open_ai_sora_2_invite_codes_megathread/"
+    POST_URL = "https://www.reddit.com/r/OpenAI/comments/1nz31om/new_sora_2_invite_code_megathread/"
     
     print("Initializing...")
     time.sleep(2)
@@ -552,3 +552,4 @@ if __name__ == "__main__":
             retry_count += 1
             print(f"Fatal: {e}")
             time.sleep(60)
+
